@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="theme-color" content="#10201B">
+<title>Weekly Goal Ledger</title>
+<style>
+  :root {
+    --bg: #10201B;
+    --surface: #172A23;
+    --surface-2: #1E352C;
+    --line: #2A443A;
+    --ink: #E9F0EA;
+    --muted: #8FA79B;
+    --faint: #5C7268;
+    --pip: #E0B453;
+    --pip-dim: #6E5A2A;
+    --done: #E0B453;
+    --danger: #D07A6A;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 14px 12px 90px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  /* ---------- header / week nav ---------- */
+  .masthead {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 2px 2px 14px;
+  }
+  .masthead h1 {
+    font-family: var(--mono);
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin: 0;
+  }
+  .weeknav {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .weeknav button.arrow {
+    background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+    width: 40px; height: 40px; border-radius: 8px; font-size: 16px;
+    cursor: pointer; flex: none;
+  }
+  .weeknav .weeklabel {
+    flex: 1; text-align: center;
+    font-family: var(--mono); font-size: 14px; font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .weeknav .sub {
+    display: block; font-size: 11px; font-weight: 400; color: var(--muted);
+    margin-top: 2px; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .todaybtn {
+    background: none; border: none; color: var(--pip);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+    cursor: pointer; padding: 4px 6px; text-transform: uppercase;
+  }
+
+  /* ---------- goal cards ---------- */
+  .goal {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 12px 12px;
+    margin-bottom: 12px;
+  }
+  .goal.archived { opacity: 0.62; }
+  .goal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+  }
+  .goal-name {
+    font-weight: 600; font-size: 15px;
+    background: none; border: none; color: var(--ink); text-align: left;
+    padding: 2px 0; cursor: pointer; font-family: var(--sans);
+    flex: 1; min-width: 0;
+  }
+  .goal-name .notehint { color: var(--faint); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .goal-name .detail { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .goal-name .detail {
+    display: block; color: var(--muted); font-weight: 400;
+    font-family: var(--mono); font-size: 12px; margin-top: 2px;
+  }
+  .goal-detail { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: 7px; }
+  .counter {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 999px; padding: 3px 11px;
+    flex: none; letter-spacing: 0.04em;
+    transition: all 120ms ease;
+  }
+  .counter.met {
+    background: var(--done); border-color: var(--done); color: #241C08;
+  }
+  .days { display: flex; gap: 5px; }
+  .cell {
+    flex: 1 1 0; min-width: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    height: 52px;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding-top: 5px;
+    cursor: pointer; user-select: none;
+    position: relative;
+    transition: background 100ms ease;
+  }
+  .cell:active { background: var(--line); }
+  .cell.future { opacity: 0.35; cursor: default; }
+  .cell.today { border-color: var(--pip-dim); box-shadow: inset 0 0 0 1px var(--pip-dim); }
+  .cell .dnum {
+    font-family: var(--mono); font-size: 10px; color: var(--faint); line-height: 1;
+  }
+  .cell.today .dnum { color: var(--pip); }
+  .pips { display: flex; gap: 3px; margin-top: 7px; flex-wrap: wrap; justify-content: center; padding: 0 2px; }
+  .pip {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--pip);
+    box-shadow: 0 0 5px rgba(224,180,83,0.35);
+  }
+  .dayrow {
+    display: flex; gap: 5px; margin: 0 2px 8px;
+  }
+  .dayrow span {
+    flex: 1 1 0; text-align: center;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase;
+  }
+
+  .empty {
+    text-align: center; color: var(--muted); padding: 44px 20px;
+    border: 1px dashed var(--line); border-radius: 10px; font-size: 14px;
+  }
+
+  /* ---------- add button ---------- */
+  .fab {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--pip); color: #241C08;
+    border: none; border-radius: 999px;
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 13px 26px; cursor: pointer;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+  }
+
+  /* ---------- modal ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(6,12,10,0.72);
+    display: none; align-items: flex-end; justify-content: center; z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .sheet {
+    background: var(--surface); border: 1px solid var(--line); border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    width: 100%; max-width: 560px; max-height: 86vh; overflow-y: auto;
+    padding: 18px 16px 28px;
+  }
+  .sheet h2 {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px;
+    letter-spacing: 0.02em;
+  }
+  .field input, .field textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--line);
+    color: var(--ink); border-radius: 8px; padding: 10px 11px;
+    font-size: 15px; font-family: var(--sans);
+  }
+  .field input[type="number"] { font-family: var(--mono); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
+  .btnrow { display: flex; gap: 10px; margin-top: 6px; }
+  .btn {
+    flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface-2); color: var(--ink); font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: var(--sans);
+  }
+  .btn.primary { background: var(--pip); border-color: var(--pip); color: #241C08; }
+  .btn.quiet { background: none; }
+  .btn.danger { color: var(--danger); border-color: rgba(208,122,106,0.4); }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 18px 0 14px; }
+
+  .histstrip {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
+  }
+  .histstrip .h {
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px;
+  }
+  .histstrip .h.met { color: var(--done); border-color: var(--pip-dim); }
+
+  .notelog { margin-top: 8px; }
+  .note {
+    border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin-bottom: 10px;
+  }
+  .note .ndate {
+    font-family: var(--mono); font-size: 11px; color: var(--faint); display: block;
+  }
+  .note .ntext { font-size: 14px; color: var(--ink); }
+  .note.auto .ntext { color: var(--muted); font-style: italic; }
+
+  .toast {
+    position: fixed; bottom: 78px; left: 50%; transform: translateX(-50%);
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+    font-family: var(--mono); font-size: 12px; padding: 8px 14px; border-radius: 8px;
+    opacity: 0; transition: opacity 200ms ease; pointer-events: none; z-index: 60;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <h1>Weekly Goal Ledger</h1>
+  <div style="display:flex;gap:2px;align-items:center">
+    <button class="todaybtn" id="todayBtn" style="visibility:hidden">This week</button>
+    <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
+  </div>
+</div>
+
+<div class="weeknav">
+  <button class="arrow" id="prevWeek" aria-label="Previous week">‹</button>
+  <div class="weeklabel" id="weekLabel"></div>
+  <button class="arrow" id="nextWeek" aria-label="Next week">›</button>
+</div>
+
+<div class="dayrow" id="dayRow"></div>
+<div id="goalList"></div>
+
+<button class="fab" id="addBtn">+ Add goal</button>
+
+<!-- Add / Edit sheet -->
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'weekly-goal-ledger-v1';
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let state = { goals: [], marks: {} };
+  let viewWeek = mondayOf(new Date());   // ISO string of the Monday being viewed
+  let saveTimer = null;
+  let editingId = null;
+
+  // ---------- date helpers (all local time) ----------
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromISO(s) { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function mondayOf(d) {
+    const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    c.setDate(c.getDate() - ((c.getDay() + 6) % 7));
+    return iso(c);
+  }
+  function addDays(isoStr, n) { const d = fromISO(isoStr); d.setDate(d.getDate() + n); return iso(d); }
+  function weekDates(weekStart) { return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); }
+  function fmtShort(isoStr) {
+    const d = fromISO(isoStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function fmtNote(isoStr) {
+    const d = fromISO(isoStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // ---------- persistence ----------
+  // Dual-mode: inside Claude, window.storage (artifact storage) is used.
+  // Standalone (hosted page added to the iPhone home screen), it falls
+  // back to the browser's localStorage, which lives on the device.
+  const store = {
+    async get(key) {
+      if (window.storage) return window.storage.get(key);
+      const v = localStorage.getItem(key);
+      return v === null ? null : { key, value: v };
+    },
+    async set(key, value) {
+      if (window.storage) return window.storage.set(key, value);
+      localStorage.setItem(key, value);
+      return { key, value };
+    }
+  };
+
+  async function load() {
+    try {
+      const res = await store.get(STORAGE_KEY);
+      if (res && res.value) state = JSON.parse(res.value);
+    } catch (e) { /* first run — nothing saved yet */ }
+    render();
+  }
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try { await store.set(STORAGE_KEY, JSON.stringify(state)); }
+      catch (e) { toast('Could not save — retrying'); setTimeout(save, 1500); }
+    }, 250);
+  }
+
+  // ---------- model helpers ----------
+  function targetForWeek(goal, weekStart) {
+    let t = goal.targetHistory[0].target;
+    for (const entry of goal.targetHistory) {
+      if (entry.week <= weekStart) t = entry.target;
+    }
+    return t;
+  }
+  function detailForWeek(goal, weekStart) {
+    if (!goal.detailHistory || goal.detailHistory.length === 0) return '';
+    let d = goal.detailHistory[0].detail;
+    for (const entry of goal.detailHistory) {
+      if (entry.week <= weekStart) d = entry.detail;
+    }
+    return d;
+  }
+  function markCount(goalId, dateISO) { return state.marks[goalId + ':' + dateISO] || 0; }
+  function weekTotal(goal, weekStart) {
+    return weekDates(weekStart).reduce((s, d) => s + markCount(goal.id, d), 0);
+  }
+  function goalVisibleInWeek(goal, weekStart) {
+    if (goal.createdWeek > weekStart) return false;
+    if (goal.archivedWeek && goal.archivedWeek <= weekStart) {
+      // still show archived goals in past weeks where they have marks
+      return weekTotal(goal, weekStart) > 0;
+    }
+    return true;
+  }
+
+  // ---------- rendering ----------
+  function render() {
+    const todayISO = iso(new Date());
+    const thisWeek = mondayOf(new Date());
+    const dates = weekDates(viewWeek);
+
+    // week label
+    const end = dates[6];
+    const sameYear = viewWeek.slice(0, 4) === end.slice(0, 4);
+    document.getElementById('weekLabel').innerHTML =
+      fmtShort(viewWeek) + ' – ' + fmtShort(end) + (sameYear ? ', ' + end.slice(0, 4) : '') +
+      '<span class="sub">' + (viewWeek === thisWeek ? 'this week' :
+        viewWeek > thisWeek ? 'upcoming' : 'past week') + '</span>';
+    document.getElementById('todayBtn').style.visibility = viewWeek === thisWeek ? 'hidden' : 'visible';
+
+    // day-of-week header
+    document.getElementById('dayRow').innerHTML = DAYS.map((d, i) =>
+      '<span>' + d + '\u00A0' + (+dates[i].slice(8)) + '</span>').join('');
+
+    // goals
+    const list = document.getElementById('goalList');
+    const visible = state.goals.filter(g => goalVisibleInWeek(g, viewWeek));
+    if (visible.length === 0) {
+      list.innerHTML = '<div class="empty">' + (state.goals.length === 0
+        ? 'No goals yet. Add your first one below.'
+        : 'Nothing tracked this week.') + '</div>';
+      return;
+    }
+
+    list.innerHTML = visible.map(g => {
+      const target = targetForWeek(g, viewWeek);
+      const total = weekTotal(g, viewWeek);
+      const detail = detailForWeek(g, viewWeek);
+      const isArch = g.archivedWeek && g.archivedWeek <= viewWeek;
+      const cells = dates.map(d => {
+        const count = markCount(g.id, d);
+        const future = d > todayISO;
+        const pips = Array.from({ length: count }, () => '<span class="pip"></span>').join('');
+        return '<div class="cell' + (future ? ' future' : '') + (d === todayISO ? ' today' : '') + '"' +
+          (future ? '' : ' data-goal="' + g.id + '" data-date="' + d + '"') + '>' +
+          '<span class="dnum">' + +d.slice(8) + '</span>' +
+          '<span class="pips">' + pips + '</span></div>';
+      }).join('');
+      return '<div class="goal' + (isArch ? ' archived' : '') + '">' +
+        '<div class="goal-head">' +
+          '<button class="goal-name" data-edit="' + g.id + '">' + esc(g.name) +
+            (detail ? ' <span class="detail">' + esc(detail) + '</span>' : '') +
+            (isArch ? '<span class="notehint">archived</span>' : '') + '</button>' +
+          '<span class="counter' + (total >= target ? ' met' : '') + '">' + total + '/' + target + '</span>' +
+        '</div>' +
+        '<div class="days">' + cells + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function esc(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1600);
+  }
+
+  // ---------- interactions ----------
+  document.getElementById('goalList').addEventListener('click', e => {
+    const cell = e.target.closest('.cell[data-goal]');
+    if (cell) {
+      const gid = cell.dataset.goal, date = cell.dataset.date;
+      const goal = state.goals.find(g => g.id === gid);
+      const key = gid + ':' + date;
+      const max = goal.perDayMax || 1;
+      const next = (markCount(gid, date) + 1) % (max + 1);
+      if (next === 0) delete state.marks[key]; else state.marks[key] = next;
+      save(); render();
+      return;
+    }
+    const editBtn = e.target.closest('[data-edit]');
+    if (editBtn) openEdit(editBtn.dataset.edit);
+  });
+
+  document.getElementById('prevWeek').onclick = () => { viewWeek = addDays(viewWeek, -7); render(); };
+  document.getElementById('nextWeek').onclick = () => { viewWeek = addDays(viewWeek, 7); render(); };
+  document.getElementById('todayBtn').onclick = () => { viewWeek = mondayOf(new Date()); render(); };
+  document.getElementById('addBtn').onclick = openAdd;
+  document.getElementById('dataBtn').onclick = openData;
+
+  // ---------- backup / restore ----------
+  function openData() {
+    const json = JSON.stringify(state);
+    openSheet(
+      '<h2>Backup &amp; restore</h2>' +
+      '<div class="field"><label>Save writes your complete ledger — goals, marks, notes, history — to a file you choose. ' +
+        'Load restores from a saved file, replacing what\u2019s here.</label></div>' +
+      '<div class="btnrow">' +
+        '<button class="btn primary" id="f-savefile">Save backup file</button>' +
+        '<button class="btn" id="f-loadfile">Load backup file</button>' +
+      '</div>' +
+      '<input type="file" id="f-file" accept=".json,application/json,text/plain" style="display:none">' +
+      '<hr class="divider">' +
+      '<div class="field"><label>Or work with the backup as text — copy it out, or paste one in and press Import.</label>' +
+        '<textarea id="f-data" style="min-height:120px;font-family:var(--mono);font-size:11px" spellcheck="false"></textarea></div>' +
+      '<div class="btnrow">' +
+        '<button class="btn" id="f-copy">Copy backup</button>' +
+        '<button class="btn" id="f-import">Import what\u2019s in the box</button>' +
+      '</div>' +
+      '<div class="btnrow" style="margin-top:10px">' +
+        '<button class="btn quiet" id="f-cancel">Close</button>' +
+      '</div>'
+    );
+    const box = document.getElementById('f-data');
+    box.value = json;
+    document.getElementById('f-cancel').onclick = closeSheet;
+
+    function applyBackup(text) {
+      let parsed;
+      try { parsed = JSON.parse(text); }
+      catch (e) { toast('That isn\u2019t valid backup text'); return; }
+      if (!parsed || !Array.isArray(parsed.goals) || typeof parsed.marks !== 'object' || parsed.marks === null) {
+        toast('That isn\u2019t a ledger backup'); return;
+      }
+      for (const g of parsed.goals) {
+        if (!Array.isArray(g.targetHistory) || g.targetHistory.length === 0) { toast('Backup is missing goal history'); return; }
+        if (!Array.isArray(g.notes)) g.notes = [];
+        if (!Array.isArray(g.detailHistory)) g.detailHistory = [];
+      }
+      if (!confirm('Restore this backup? It replaces everything currently in the ledger.')) return;
+      state = parsed;
+      save(); closeSheet(); render();
+      toast('Backup restored');
+    }
+
+    document.getElementById('f-savefile').onclick = async () => {
+      const name = 'ledger-backup-' + iso(new Date()) + '.json';
+      const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+      const file = new File([blob], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); toast('Backup saved'); }
+        catch (e) { /* user cancelled the share sheet — no-op */ }
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+
+    document.getElementById('f-loadfile').onclick = () => document.getElementById('f-file').click();
+    document.getElementById('f-file').onchange = e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => applyBackup(reader.result);
+      reader.onerror = () => toast('Could not read that file');
+      reader.readAsText(f);
+    };
+
+    document.getElementById('f-copy').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(box.value);
+        toast('Backup copied');
+      } catch (e) {
+        box.focus(); box.select();
+        try { document.execCommand('copy'); toast('Backup copied'); }
+        catch (e2) { toast('Select the text and copy manually'); }
+      }
+    };
+
+    document.getElementById('f-import').onclick = () => applyBackup(box.value);
+  }
+
+  document.getElementById('overlay').addEventListener('click', e => {
+    if (e.target.id === 'overlay') closeSheet();
+  });
+
+  function openSheet(html) {
+    document.getElementById('sheet').innerHTML = html;
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeSheet() {
+    document.getElementById('overlay').classList.remove('open');
+    editingId = null;
+  }
+
+  // ---------- add goal ----------
+  function openAdd() {
+    openSheet(
+      '<h2>New goal</h2>' +
+      '<div class="field"><label>Name</label><input id="f-name" placeholder="Jog" autocomplete="off"></div>' +
+      '<div class="field"><label>Detail (optional)</label><input id="f-detail" placeholder="1/2 mile" autocomplete="off"></div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Times per week</label><input id="f-target" type="number" min="1" max="21" value="3"></div>' +
+        '<div class="field"><label>Max checks per day</label><input id="f-max" type="number" min="1" max="6" value="1"></div>' +
+      '</div>' +
+      '<div class="btnrow">' +
+        '<button class="btn quiet" id="f-cancel">Cancel</button>' +
+        '<button class="btn primary" id="f-save">Add goal</button>' +
+      '</div>'
+    );
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = () => {
+      const name = document.getElementById('f-name').value.trim();
+      const target = Math.max(1, +document.getElementById('f-target').value || 3);
+      const max = Math.max(1, +document.getElementById('f-max').value || 1);
+      const detail = document.getElementById('f-detail').value.trim();
+      if (!name) { document.getElementById('f-name').focus(); return; }
+      state.goals.push({
+        id: 'g' + Date.now(),
+        name, perDayMax: max,
+        createdWeek: viewWeek <= mondayOf(new Date()) ? viewWeek : mondayOf(new Date()),
+        archivedWeek: null,
+        targetHistory: [{ week: viewWeek, target }],
+        detailHistory: detail ? [{ week: viewWeek, detail }] : [],
+        notes: []
+      });
+      save(); closeSheet(); render();
+    };
+    setTimeout(() => document.getElementById('f-name').focus(), 60);
+  }
+
+  // ---------- edit goal ----------
+  function openEdit(gid) {
+    const g = state.goals.find(x => x.id === gid);
+    if (!g) return;
+    editingId = gid;
+    const currentTarget = targetForWeek(g, mondayOf(new Date()));
+    const currentDetail = detailForWeek(g, mondayOf(new Date()));
+    const isArch = !!g.archivedWeek;
+
+    // history strip: last 8 finished-or-current weeks since creation
+    const thisWeek = mondayOf(new Date());
+    let hist = '';
+    let w = thisWeek;
+    for (let i = 0; i < 8; i++) {
+      if (w < g.createdWeek) break;
+      const t = targetForWeek(g, w);
+      const n = weekTotal(g, w);
+      hist = '<span class="h' + (n >= t ? ' met' : '') + '">' + fmtShort(w).replace(' ', '\u00A0') + '&nbsp;·&nbsp;' + n + '/' + t + '</span>' + hist;
+      w = addDays(w, -7);
+    }
+
+    const notesHtml = g.notes.slice().reverse().map(n =>
+      '<div class="note' + (n.auto ? ' auto' : '') + '"><span class="ndate">' + fmtNote(n.date) + '</span>' +
+      '<span class="ntext">' + esc(n.text) + '</span></div>'
+    ).join('') || '<div class="note auto"><span class="ntext">No notes yet.</span></div>';
+
+    openSheet(
+      '<h2>Edit goal</h2>' +
+      '<div class="field"><label>Name</label><input id="f-name" value="' + esc(g.name) + '"></div>' +
+      '<div class="field"><label>Detail (carries forward from this week)</label>' +
+        '<input id="f-detail" value="' + esc(currentDetail) + '" placeholder="e.g. 1 mile"></div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>Times per week (from this week on)</label>' +
+          '<input id="f-target" type="number" min="1" max="21" value="' + currentTarget + '"></div>' +
+        '<div class="field"><label>Max checks per day</label>' +
+          '<input id="f-max" type="number" min="1" max="6" value="' + (g.perDayMax || 1) + '"></div>' +
+      '</div>' +
+      '<div class="btnrow">' +
+        '<button class="btn quiet" id="f-cancel">Cancel</button>' +
+        '<button class="btn primary" id="f-save">Save changes</button>' +
+      '</div>' +
+      '<hr class="divider">' +
+      '<h2>Recent weeks</h2><div class="histstrip">' + hist + '</div>' +
+      '<hr class="divider">' +
+      '<h2>Notes</h2>' +
+      '<div class="field"><textarea id="f-note" placeholder="e.g. Bumping to 5×/week — morning and night"></textarea></div>' +
+      '<div class="btnrow"><button class="btn" id="f-addnote">Add note</button></div>' +
+      '<div class="notelog">' + notesHtml + '</div>' +
+      '<hr class="divider">' +
+      '<div class="btnrow">' +
+        '<button class="btn" id="f-arch">' + (isArch ? 'Unarchive' : 'Archive (keep history)') + '</button>' +
+        '<button class="btn danger" id="f-del">Delete forever</button>' +
+      '</div>'
+    );
+
+    document.getElementById('f-cancel').onclick = closeSheet;
+
+    document.getElementById('f-save').onclick = () => {
+      const name = document.getElementById('f-name').value.trim();
+      const newTarget = Math.max(1, +document.getElementById('f-target').value || currentTarget);
+      const newMax = Math.max(1, +document.getElementById('f-max').value || 1);
+      const newDetail = document.getElementById('f-detail').value.trim();
+      if (name) g.name = name;
+      g.perDayMax = newMax;
+      if (newDetail !== currentDetail) {
+        const wk = mondayOf(new Date());
+        if (!g.detailHistory) g.detailHistory = [];
+        g.detailHistory = g.detailHistory.filter(e => e.week !== wk);
+        g.detailHistory.push({ week: wk, detail: newDetail });
+        g.detailHistory.sort((a, b) => a.week < b.week ? -1 : 1);
+        g.notes.push({ date: iso(new Date()), text: 'Detail: ' + (currentDetail || '—') + ' → ' + (newDetail || '—'), auto: true });
+      }
+      if (newTarget !== currentTarget) {
+        const wk = mondayOf(new Date());
+        g.targetHistory = g.targetHistory.filter(e => e.week !== wk);
+        g.targetHistory.push({ week: wk, target: newTarget });
+        g.targetHistory.sort((a, b) => a.week < b.week ? -1 : 1);
+        g.notes.push({ date: iso(new Date()), text: 'Target changed to ' + newTarget + '×/week', auto: true });
+      }
+      save(); closeSheet(); render();
+    };
+
+    document.getElementById('f-addnote').onclick = () => {
+      const txt = document.getElementById('f-note').value.trim();
+      if (!txt) return;
+      g.notes.push({ date: iso(new Date()), text: txt });
+      save(); openEdit(gid); // re-render sheet with the new note
+    };
+
+    document.getElementById('f-arch').onclick = () => {
+      if (g.archivedWeek) {
+        g.archivedWeek = null;
+      } else {
+        g.archivedWeek = mondayOf(new Date());
+        g.notes.push({ date: iso(new Date()), text: 'Archived', auto: true });
+      }
+      save(); closeSheet(); render();
+    };
+
+    document.getElementById('f-del').onclick = () => {
+      if (!confirm('Delete "' + g.name + '" and all its history? This cannot be undone.')) return;
+      state.goals = state.goals.filter(x => x.id !== gid);
+      for (const k of Object.keys(state.marks)) {
+        if (k.startsWith(gid + ':')) delete state.marks[k];
+      }
+      save(); closeSheet(); render();
+    };
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
