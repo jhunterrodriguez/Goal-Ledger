@@ -464,6 +464,7 @@
       '</div>' +
       '<div class="btnrow" style="margin-top:10px">' +
         '<button class="btn quiet" id="f-cancel">Close</button>' +
+        '<button class="btn danger" id="f-clear">Clear all data</button>' +
       '</div>'
     );
     const box = document.getElementById('f-data');
@@ -526,6 +527,13 @@
     };
 
     document.getElementById('f-import').onclick = () => applyBackup(box.value);
+
+    document.getElementById('f-clear').onclick = () => {
+      if (!confirm('Erase every goal, mark, and note? If you haven\u2019t saved a backup file, this is gone for good.')) return;
+      state = { goals: [], marks: {} };
+      save(); closeSheet(); render();
+      toast('Ledger cleared');
+    };
   }
 
   document.getElementById('overlay').addEventListener('click', e => {
