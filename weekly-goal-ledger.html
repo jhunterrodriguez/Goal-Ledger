@@ -83,8 +83,23 @@
   .goal.archived { opacity: 0.62; }
   .goal-head {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; margin-bottom: 10px;
+    gap: 8px; margin-bottom: 10px;
   }
+  .draghandle {
+    flex: none; width: 22px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none;
+  }
+  .draghandle .grip {
+    width: 14px; height: 12px;
+    background-image: repeating-linear-gradient(to bottom, var(--faint) 0px, var(--faint) 2px, transparent 2px, transparent 5px);
+  }
+  .goal.dragging { box-shadow: 0 10px 26px rgba(0,0,0,0.5); z-index: 40; position: relative; }
+  .goal.dragging .draghandle .grip {
+    background-image: repeating-linear-gradient(to bottom, var(--pip) 0px, var(--pip) 2px, transparent 2px, transparent 5px);
+  }
+  .goal.drop-before { box-shadow: inset 0 3px 0 0 var(--pip); }
+  .goal.drop-after { box-shadow: inset 0 -3px 0 0 var(--pip); }
   .goal-name {
     font-weight: 600; font-size: 15px;
     background: none; border: none; color: var(--ink); text-align: left;
@@ -93,11 +108,6 @@
   }
   .goal-name .notehint { color: var(--faint); font-weight: 400; font-size: 12px; margin-left: 6px; }
   .goal-name .detail { color: var(--muted); font-weight: 400; font-size: 13px; }
-  .goal-name .detail {
-    display: block; color: var(--muted); font-weight: 400;
-    font-family: var(--mono); font-size: 12px; margin-top: 2px;
-  }
-  .goal-detail { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: 7px; }
   .counter {
     font-family: var(--mono); font-size: 14px; font-weight: 700;
     border: 1px solid var(--line);
@@ -114,10 +124,9 @@
     flex: 1 1 0; min-width: 0;
     background: var(--surface-2);
     border: 1px solid var(--line);
-    border-radius: 7px;
-    height: 52px;
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    padding-top: 5px;
+    border-radius: 6px;
+    height: 36px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     cursor: pointer; user-select: none;
     position: relative;
     transition: background 100ms ease;
@@ -129,11 +138,11 @@
     font-family: var(--mono); font-size: 10px; color: var(--faint); line-height: 1;
   }
   .cell.today .dnum { color: var(--pip); }
-  .pips { display: flex; gap: 3px; margin-top: 7px; flex-wrap: wrap; justify-content: center; padding: 0 2px; }
-  .pip {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: var(--pip);
-    box-shadow: 0 0 5px rgba(224,180,83,0.35);
+  .cell.marked { background: var(--pip); }
+  .cell.marked .dnum { color: #241C08; }
+  .cell.marked .multicount {
+    font-family: var(--mono); font-size: 9px; font-weight: 700; color: #241C08;
+    line-height: 1; margin-top: 1px;
   }
   .dayrow {
     display: flex; gap: 5px; margin: 0 2px 8px;
@@ -391,14 +400,17 @@
       const cells = dates.map(d => {
         const count = markCount(g.id, d);
         const future = d > todayISO;
-        const pips = Array.from({ length: count }, () => '<span class="pip"></span>').join('');
-        return '<div class="cell' + (future ? ' future' : '') + (d === todayISO ? ' today' : '') + '"' +
+        const marked = count >= 1;
+        const multi = marked && (g.perDayMax || 1) > 1
+          ? '<span class="multicount">' + count + '</span>' : '';
+        return '<div class="cell' + (future ? ' future' : '') + (d === todayISO ? ' today' : '') +
+          (marked ? ' marked' : '') + '"' +
           (future ? '' : ' data-goal="' + g.id + '" data-date="' + d + '"') + '>' +
-          '<span class="dnum">' + +d.slice(8) + '</span>' +
-          '<span class="pips">' + pips + '</span></div>';
+          '<span class="dnum">' + +d.slice(8) + '</span>' + multi + '</div>';
       }).join('');
-      return '<div class="goal' + (isArch ? ' archived' : '') + '">' +
+      return '<div class="goal' + (isArch ? ' archived' : '') + '" data-gid="' + g.id + '">' +
         '<div class="goal-head">' +
+          '<span class="draghandle" data-drag="' + g.id + '" aria-label="Reorder"><span class="grip"></span></span>' +
           '<button class="goal-name" data-edit="' + g.id + '">' + esc(g.name) +
             (detail ? ' <span class="detail">' + esc(detail) + '</span>' : '') +
             (isArch ? '<span class="notehint">archived</span>' : '') + '</button>' +
@@ -421,7 +433,9 @@
   }
 
   // ---------- interactions ----------
+  let suppressClickUntil = 0;
   document.getElementById('goalList').addEventListener('click', e => {
+    if (Date.now() < suppressClickUntil) return;
     const cell = e.target.closest('.cell[data-goal]');
     if (cell) {
       const gid = cell.dataset.goal, date = cell.dataset.date;
@@ -436,6 +450,96 @@
     const editBtn = e.target.closest('[data-edit]');
     if (editBtn) openEdit(editBtn.dataset.edit);
   });
+
+  // ---------- drag-to-reorder (long press, then drag) ----------
+  const LONG_PRESS_MS = 320;
+  const MOVE_CANCEL_PX = 8;
+  let pressState = null;
+  let dragCtx = null;
+
+  document.getElementById('goalList').addEventListener('pointerdown', e => {
+    const handle = e.target.closest('.draghandle');
+    if (!handle) return;
+    const card = handle.closest('.goal');
+    pressState = { gid: handle.dataset.drag, card, startY: e.clientY, moved: false };
+    pressState.timer = setTimeout(() => {
+      if (pressState && !pressState.moved) startDrag(pressState.gid, pressState.card, pressState.startY);
+    }, LONG_PRESS_MS);
+  });
+
+  document.addEventListener('pointermove', e => {
+    if (dragCtx) { onDragMove(e); return; }
+    if (pressState && Math.abs(e.clientY - pressState.startY) > MOVE_CANCEL_PX) {
+      clearTimeout(pressState.timer);
+      pressState = null;
+    }
+  });
+
+  document.addEventListener('pointerup', endPress);
+  document.addEventListener('pointercancel', endPress);
+  function endPress() {
+    if (dragCtx) { endDrag(); return; }
+    if (pressState) { clearTimeout(pressState.timer); pressState = null; }
+  }
+
+  function startDrag(gid, card, startY) {
+    const cards = Array.from(document.querySelectorAll('#goalList .goal'));
+    const startIndex = cards.indexOf(card);
+    if (startIndex === -1) return;
+    const rects = cards.map(c => c.getBoundingClientRect());
+    dragCtx = {
+      gid, card, cards, startIndex, currentIndex: startIndex,
+      startY,
+      othersOrdered: cards.filter((c, i) => i !== startIndex),
+      othersRects: rects.filter((r, i) => i !== startIndex)
+    };
+    card.classList.add('dragging');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function onDragMove(e) {
+    e.preventDefault();
+    const deltaY = e.clientY - dragCtx.startY;
+    dragCtx.card.style.transform = 'translateY(' + deltaY + 'px)';
+    const pointerY = e.clientY;
+    let count = 0;
+    for (const r of dragCtx.othersRects) {
+      if (r.top + r.height / 2 < pointerY) count++;
+    }
+    dragCtx.currentIndex = count;
+    dragCtx.othersOrdered.forEach(c => c.classList.remove('drop-before', 'drop-after'));
+    if (count < dragCtx.othersOrdered.length) {
+      dragCtx.othersOrdered[count].classList.add('drop-before');
+    } else if (dragCtx.othersOrdered.length) {
+      dragCtx.othersOrdered[dragCtx.othersOrdered.length - 1].classList.add('drop-after');
+    }
+  }
+
+  function endDrag() {
+    const { gid, startIndex, currentIndex, cards, card } = dragCtx;
+    cards.forEach(c => c.classList.remove('drop-before', 'drop-after', 'dragging'));
+    card.style.transform = '';
+    document.body.style.overflow = '';
+    dragCtx = null;
+    suppressClickUntil = Date.now() + 300;
+    if (currentIndex !== startIndex) reorderGoal(gid, startIndex, currentIndex);
+  }
+
+  function reorderGoal(gid, fromIdx, toIdx) {
+    const visible = state.goals.filter(g => goalVisibleInWeek(g, viewWeek));
+    const ids = visible.map(g => g.id);
+    const [moved] = ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, moved);
+    const idSet = new Set(ids);
+    let ptr = 0;
+    const newFull = [];
+    for (const g of state.goals) {
+      if (idSet.has(g.id)) { newFull.push(state.goals.find(x => x.id === ids[ptr])); ptr++; }
+      else newFull.push(g);
+    }
+    state.goals = newFull;
+    save(); render();
+  }
 
   document.getElementById('prevWeek').onclick = () => { viewWeek = addDays(viewWeek, -7); render(); };
   document.getElementById('nextWeek').onclick = () => { viewWeek = addDays(viewWeek, 7); render(); };
