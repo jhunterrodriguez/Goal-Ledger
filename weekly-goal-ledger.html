@@ -26,16 +26,36 @@
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; }
-  body {
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    overflow: hidden; /* the page itself never scrolls — only .app-scroll does */
     background: var(--bg);
+  }
+  body {
     color: var(--ink);
     font-family: var(--sans);
     font-size: 15px;
     line-height: 1.4;
-    padding: 14px 12px 90px;
+  }
+  .app {
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh; /* dvh accounts for mobile browser chrome where supported */
     max-width: 560px;
     margin: 0 auto;
+  }
+  .app-header { flex: none; padding: 14px 12px 0; }
+  .app-scroll {
+    flex: 1; min-height: 0; /* required for a flex child to actually scroll instead of overflowing */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 0 12px 14px;
+  }
+  .app-footer {
+    flex: none; display: flex; justify-content: center;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
   }
 
   /* ---------- header / week nav ---------- */
@@ -179,7 +199,6 @@
 
   /* ---------- add button ---------- */
   .fab {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--pip); color: #241C08;
     border: none; border-radius: 999px;
     font-family: var(--mono); font-size: 13px; font-weight: 700;
@@ -273,24 +292,35 @@
 </head>
 <body>
 
-<div class="masthead">
-  <h1>Weekly Goal Ledger</h1>
-  <div style="display:flex;gap:2px;align-items:center">
-    <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Today</button>
-    <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
+<div class="app">
+
+  <div class="app-header">
+    <div class="masthead">
+      <h1>Weekly Goal Ledger</h1>
+      <div style="display:flex;gap:2px;align-items:center">
+        <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Today</button>
+        <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
+      </div>
+    </div>
+
+    <div class="weeknav">
+      <button class="arrow" id="prevWeek" aria-label="Previous week">‹</button>
+      <div class="weeklabel" id="weekLabel"></div>
+      <button class="arrow" id="nextWeek" aria-label="Next week">›</button>
+    </div>
+
+    <div class="dayrow" id="dayRow"></div>
   </div>
+
+  <div class="app-scroll">
+    <div id="goalList"></div>
+  </div>
+
+  <div class="app-footer">
+    <button class="fab" id="addBtn">+ Add goal</button>
+  </div>
+
 </div>
-
-<div class="weeknav">
-  <button class="arrow" id="prevWeek" aria-label="Previous week">‹</button>
-  <div class="weeklabel" id="weekLabel"></div>
-  <button class="arrow" id="nextWeek" aria-label="Next week">›</button>
-</div>
-
-<div class="dayrow" id="dayRow"></div>
-<div id="goalList"></div>
-
-<button class="fab" id="addBtn">+ Add goal</button>
 
 <!-- Add / Edit sheet -->
 <div class="overlay" id="overlay">
