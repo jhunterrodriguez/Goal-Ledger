@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
 <meta name="theme-color" content="#10201B">
-<title>Weekly Goal Ledger</title>
+<title>Goal Ledger</title>
 <style>
   :root {
     --bg: #10201B;
@@ -60,7 +60,7 @@
 
   /* ---------- header / week nav ---------- */
   .masthead {
-    display: flex; align-items: baseline; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between;
     margin: 2px 2px 14px;
   }
   .masthead h1 {
@@ -68,6 +68,17 @@
     font-size: 13px; font-weight: 600;
     letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--muted); margin: 0;
+  }
+  .titlegroup { display: flex; align-items: center; gap: 8px; }
+  .viewswitch { display: flex; gap: 4px; }
+  .switchbtn {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 6px; cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  .switchbtn.active {
+    color: var(--pip); border-color: var(--pip-dim); background: rgba(224,180,83,0.10);
   }
   .weeknav {
     display: flex; align-items: center; gap: 8px;
@@ -104,6 +115,7 @@
     font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
     cursor: pointer; padding: 4px 6px; text-transform: uppercase;
   }
+  #todayBtn { letter-spacing: 0.02em; word-spacing: -4.5px; padding: 4px 4px; }
 
   /* ---------- goal cards ---------- */
   .goal {
@@ -113,6 +125,33 @@
     padding: 12px 12px 12px;
     margin-bottom: 12px;
   }
+  .goal.compact { padding: 7px 10px; margin-bottom: 6px; }
+  .goal.compact .goal-head { margin-bottom: 0; }
+  .goal.compact .goal-head.compact-row {
+    cursor: pointer;
+    margin: -7px -10px; padding: 9px 10px;
+    border-radius: 9px;
+    transition: background 100ms ease;
+  }
+  .goal.compact .goal-head.compact-row:active { background: var(--surface-2); }
+  .goal.compact .goal-head.compact-row.marked { background: var(--pip); }
+  .goal.compact .goal-head.compact-row.marked .goal-name,
+  .goal.compact .goal-head.compact-row.marked .goal-name .detail,
+  .goal.compact .goal-head.compact-row.marked .notehint {
+    color: #241C08;
+  }
+  .goal.compact .goal-head.compact-row.marked .counter {
+    background: rgba(36,28,8,0.16); border-color: rgba(36,28,8,0.3); color: #241C08;
+  }
+  .goal.paused .goal-head.compact-row { pointer-events: none; }
+  .goal.paused .goal-head.compact-row .goal-name { pointer-events: auto; }
+  .goal.compact .goal-head.compact-row .goal-name { flex: 0 1 auto; }
+  .compact-fill { flex: 1; min-width: 8px; }
+  .compactbadge {
+    flex: none; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--muted); margin-left: 2px;
+  }
+  .goal.compact .goal-head.compact-row.marked .compactbadge { color: #241C08; }
   .goal.paused { opacity: 0.5; }
   .goal.paused .days { pointer-events: none; }
   .goal-head {
@@ -132,7 +171,7 @@
   .notedot {
     flex: none; width: 15px; height: 15px;
     display: flex; align-items: center; justify-content: center;
-    color: var(--faint); opacity: 0.45;
+    color: var(--faint); opacity: 0.45; cursor: pointer;
   }
   .notedot svg { width: 100%; height: 100%; display: block; }
   .notedot.lit {
@@ -190,6 +229,10 @@
     flex: 1 1 0; text-align: center;
     font-family: var(--mono); font-size: 10px;
     color: var(--faint); letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .dayrow .fulldate {
+    font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+    text-transform: none; color: var(--ink);
   }
 
   .empty {
@@ -260,6 +303,20 @@
   .histstrip .h.met { color: var(--done); border-color: var(--pip-dim); }
 
   .notelog { margin-top: 8px; }
+  .todolist { margin-top: 4px; }
+  .todoitem {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--line);
+  }
+  .todoitem:last-child { border-bottom: none; }
+  .todocheck {
+    flex: none; width: 20px; height: 20px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--surface-2);
+    cursor: pointer; padding: 0;
+  }
+  .todoitem.done .todocheck { background: var(--pip); border-color: var(--pip); }
+  .todotext { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .todoitem.done .todotext { color: var(--faint); text-decoration: line-through; }
   .note {
     border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin-bottom: 10px;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
@@ -296,14 +353,21 @@
 
   <div class="app-header">
     <div class="masthead">
-      <h1>Weekly Goal Ledger</h1>
+      <div class="titlegroup">
+        <h1>Goal Ledger</h1>
+        <div class="viewswitch">
+          <button class="switchbtn" id="weekViewBtn">Week View</button>
+          <button class="switchbtn" id="todayOnlyBtn">Today Only</button>
+        </div>
+      </div>
       <div style="display:flex;gap:2px;align-items:center">
-        <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Today</button>
+        <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Current Week</button>
+        <button class="todaybtn" id="todoBtn" style="color:var(--muted)">To-Do</button>
         <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
       </div>
     </div>
 
-    <div class="weeknav">
+    <div class="weeknav" id="weekNav">
       <button class="arrow" id="prevWeek" aria-label="Previous week">‹</button>
       <div class="weeklabel" id="weekLabel"></div>
       <button class="arrow" id="nextWeek" aria-label="Next week">›</button>
@@ -334,7 +398,7 @@
   const STORAGE_KEY = 'weekly-goal-ledger-v1';
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  let state = { goals: [], marks: {} };
+  let state = { goals: [], marks: {}, todos: [] };
   let viewWeek = mondayOf(new Date());   // ISO string of the Monday being viewed
   let saveTimer = null;
   let editingId = null;
@@ -461,27 +525,66 @@
       ' <span class="fw' + (allDone ? ' lit' : '') + '">✳</span>' +
       '<span class="sub' + (isCurrent ? ' current' : '') + '">' + subLabel + '</span>';
     document.getElementById('todayBtn').style.visibility = isCurrent ? 'hidden' : 'visible';
+    document.getElementById('todayOnlyBtn').classList.toggle('active', state.compact);
+    document.getElementById('weekViewBtn').classList.toggle('active', !state.compact);
 
-    // day-of-week header
-    document.getElementById('dayRow').innerHTML = DAYS.map((d, i) =>
-      '<span>' + d + '\u00A0' + (+dates[i].slice(8)) + '</span>').join('');
+    const isCompact = state.compact; // "Today Only" now works from any browsed week — it always shows today
+
+    // week navigation is meaningless in Today Only mode, since the cards
+    // below no longer respond to it — hide it entirely rather than leave
+    // controls on screen that quietly do nothing visible
+    document.getElementById('weekNav').style.display = isCompact ? 'none' : 'flex';
+    if (isCompact) document.getElementById('todayBtn').style.visibility = 'hidden';
+
+    // day-of-week header — a single full date in compact mode, the usual 7-day strip otherwise
+    document.getElementById('dayRow').innerHTML = isCompact
+      ? '<span class="fulldate">' + fromISO(todayISO).toLocaleDateString('en-US',
+          { weekday: 'long', month: 'long', day: 'numeric' }) + '</span>'
+      : DAYS.map((d, i) => '<span>' + d + '\u00A0' + (+dates[i].slice(8)) + '</span>').join('');
+
+    // Today Only is anchored to the actual current week and today's date,
+    // regardless of which week's history you're browsing in the header above
+    // it — otherwise a goal you ended last week would still show a checkbox
+    // just because you happened to be looking at an older week.
+    const refWeek = isCompact ? thisWeek : viewWeek;
+    const cardGoals = isCompact ? state.goals.filter(g => goalVisibleInWeek(g, thisWeek)) : visible;
 
     // goal list
     const list = document.getElementById('goalList');
-    if (visible.length === 0) {
+    if (cardGoals.length === 0) {
       list.innerHTML = '<div class="empty">' + (state.goals.length === 0
         ? 'No goals yet. Add your first one below.'
         : 'Nothing tracked this week.') + '</div>';
       return;
     }
 
-    list.innerHTML = visible.map((g, idx) => {
-      const target = targetForWeek(g, viewWeek);
-      const total = weekTotal(g, viewWeek);
-      const detail = detailForWeek(g, viewWeek);
-      const noted = hasNoteThisWeek(g, viewWeek);
-      const status = statusInfoForWeek(g, viewWeek).status;
+    list.innerHTML = cardGoals.map((g, idx) => {
+      const target = targetForWeek(g, refWeek);
+      const total = weekTotal(g, refWeek);
+      const detail = detailForWeek(g, refWeek);
+      const noted = hasNoteThisWeek(g, refWeek);
+      const status = statusInfoForWeek(g, refWeek).status;
       const isPaused = status === 'paused';
+
+      if (isCompact) {
+        const count = markCount(g.id, todayISO);
+        const marked = count >= 1;
+        const multi = marked && (g.perDayMax || 1) > 1
+          ? '<span class="compactbadge">' + count + '</span>' : '';
+        return '<div class="goal compact' + (isPaused ? ' paused' : '') + '" data-gid="' + g.id + '">' +
+          '<div class="goal-head compact-row' + (marked ? ' marked' : '') + '"' +
+            ' data-goal="' + g.id + '" data-date="' + todayISO + '">' +
+            noteIcon(noted, g.id) +
+            '<button class="goal-name" data-edit="' + g.id + '">' + esc(g.name) +
+              (detail ? ' <span class="detail">' + esc(detail) + '</span>' : '') +
+              (isPaused ? '<span class="notehint">paused</span>' : '') + '</button>' +
+            '<span class="compact-fill"></span>' +
+            '<span class="counter' + (total >= target ? ' met' : '') + '">' + total + '/' + target + '</span>' +
+            multi +
+          '</div>' +
+        '</div>';
+      }
+
       const cells = dates.map(d => {
         const count = markCount(g.id, d);
         const future = d > todayISO;
@@ -495,7 +598,7 @@
       }).join('');
       return '<div class="goal' + (isPaused ? ' paused' : '') + '" data-gid="' + g.id + '">' +
         '<div class="goal-head">' +
-          noteIcon(noted) +
+          noteIcon(noted, g.id) +
           '<button class="goal-name" data-edit="' + g.id + '">' + esc(g.name) +
             (detail ? ' <span class="detail">' + esc(detail) + '</span>' : '') +
             (isPaused ? '<span class="notehint">paused</span>' : '') + '</button>' +
@@ -514,8 +617,8 @@
     return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function noteIcon(lit) {
-    return '<span class="notedot' + (lit ? ' lit' : '') + '" title="' +
+  function noteIcon(lit, gid) {
+    return '<span class="notedot' + (lit ? ' lit' : '') + '" data-edit="' + gid + '" title="' +
       (lit ? 'Note added this week' : 'No note yet this week') + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
         'stroke-linecap="round" stroke-linejoin="round">' +
@@ -538,19 +641,22 @@
       moveGoal(moveBtn.dataset.move, +moveBtn.dataset.dir);
       return;
     }
-    const cell = e.target.closest('.cell[data-goal]');
-    if (cell) {
-      const gid = cell.dataset.goal, date = cell.dataset.date;
+    // the name button must win even when it sits inside a tappable
+    // checkbox row (compact mode), so it's checked before the toggle
+    const editBtn = e.target.closest('[data-edit]');
+    if (editBtn) { openEdit(editBtn.dataset.edit); return; }
+
+    const target = e.target.closest('[data-goal][data-date]');
+    if (target) {
+      const gid = target.dataset.goal, date = target.dataset.date;
       const goal = state.goals.find(g => g.id === gid);
+      if (!goal || statusInfoForWeek(goal, viewWeek).status === 'paused') return;
       const key = gid + ':' + date;
       const max = goal.perDayMax || 1;
       const next = (markCount(gid, date) + 1) % (max + 1);
       if (next === 0) delete state.marks[key]; else state.marks[key] = next;
       save(); render();
-      return;
     }
-    const editBtn = e.target.closest('[data-edit]');
-    if (editBtn) openEdit(editBtn.dataset.edit);
   });
 
   function moveGoal(gid, dir) {
@@ -569,8 +675,62 @@
   document.getElementById('prevWeek').onclick = () => { viewWeek = addDays(viewWeek, -7); render(); };
   document.getElementById('nextWeek').onclick = () => { viewWeek = addDays(viewWeek, 7); render(); };
   document.getElementById('todayBtn').onclick = () => { viewWeek = mondayOf(new Date()); render(); };
+  document.getElementById('todayOnlyBtn').onclick = () => { state.compact = true; save(); render(); };
+  document.getElementById('weekViewBtn').onclick = () => { state.compact = false; save(); render(); };
   document.getElementById('addBtn').onclick = openAdd;
   document.getElementById('dataBtn').onclick = openData;
+  document.getElementById('todoBtn').onclick = openTodo;
+
+  // ---------- standalone to-do list (no goals, no dates, no weeks) ----------
+  function openTodo() {
+    if (!Array.isArray(state.todos)) state.todos = [];
+    const itemsHtml = state.todos.length === 0
+      ? '<div class="note auto"><div class="ncontent"><span class="ntext">Nothing on the list.</span></div></div>'
+      : state.todos.map((t, i) =>
+          '<div class="todoitem' + (t.done ? ' done' : '') + '">' +
+            '<button class="todocheck" data-toggle="' + i + '" aria-label="Toggle done"></button>' +
+            '<span class="todotext" data-toggle="' + i + '">' + esc(t.text) + '</span>' +
+            '<button class="ndelete" data-deltodo="' + i + '" title="Delete">×</button>' +
+          '</div>'
+        ).join('');
+
+    openSheet(
+      '<h2>To-Do</h2>' +
+      '<div class="field"><input id="f-todotext" placeholder="Add something\u2026" autocomplete="off"></div>' +
+      '<div class="btnrow"><button class="btn primary" id="f-todoadd">Add</button></div>' +
+      '<hr class="divider">' +
+      '<div class="todolist">' + itemsHtml + '</div>' +
+      '<div class="btnrow" style="margin-top:14px"><button class="btn quiet" id="f-cancel">Close</button></div>'
+    );
+
+    document.getElementById('f-cancel').onclick = closeSheet;
+
+    const input = document.getElementById('f-todotext');
+    function addItem() {
+      const txt = input.value.trim();
+      if (!txt) return;
+      state.todos.push({ id: 't' + Date.now() + Math.random().toString(36).slice(2, 6), text: txt, done: false });
+      save(); openTodo(); // re-render with the new item, keep the sheet open
+    }
+    document.getElementById('f-todoadd').onclick = addItem;
+    input.onkeydown = e => { if (e.key === 'Enter') addItem(); };
+    setTimeout(() => input.focus(), 60);
+
+    document.querySelector('.todolist').addEventListener('click', e => {
+      const del = e.target.closest('[data-deltodo]');
+      if (del) {
+        state.todos.splice(+del.dataset.deltodo, 1);
+        save(); openTodo();
+        return;
+      }
+      const tog = e.target.closest('[data-toggle]');
+      if (tog) {
+        const i = +tog.dataset.toggle;
+        state.todos[i].done = !state.todos[i].done;
+        save(); openTodo();
+      }
+    });
+  }
 
   // ---------- backup / restore ----------
   function openData() {
@@ -611,6 +771,7 @@
       if (!parsed || !Array.isArray(parsed.goals) || typeof parsed.marks !== 'object' || parsed.marks === null) {
         toast('That isn\u2019t a ledger backup'); return;
       }
+      if (!Array.isArray(parsed.todos)) parsed.todos = [];
       for (const g of parsed.goals) {
         if (!Array.isArray(g.targetHistory) || g.targetHistory.length === 0) { toast('Backup is missing goal history'); return; }
         if (!Array.isArray(g.notes)) g.notes = [];
@@ -699,8 +860,8 @@
     document.getElementById('f-import').onclick = () => applyBackup(box.value);
 
     document.getElementById('f-clear').onclick = () => {
-      if (!confirm('Erase every goal, mark, and note? If you haven\u2019t saved a backup file, this is gone for good.')) return;
-      state = { goals: [], marks: {} };
+      if (!confirm('Erase every goal, mark, note, and to-do? If you haven\u2019t saved a backup file, this is gone for good.')) return;
+      state = { goals: [], marks: {}, todos: [] };
       save(); closeSheet(); render();
       toast('Ledger cleared');
     };
