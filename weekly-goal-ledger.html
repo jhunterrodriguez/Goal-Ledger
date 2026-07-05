@@ -696,10 +696,10 @@
 
     openSheet(
       '<h2>To-Do</h2>' +
+      '<div class="todolist">' + itemsHtml + '</div>' +
+      '<hr class="divider">' +
       '<div class="field"><input id="f-todotext" placeholder="Add something\u2026" autocomplete="off"></div>' +
       '<div class="btnrow"><button class="btn primary" id="f-todoadd">Add</button></div>' +
-      '<hr class="divider">' +
-      '<div class="todolist">' + itemsHtml + '</div>' +
       '<div class="btnrow" style="margin-top:14px"><button class="btn quiet" id="f-cancel">Close</button></div>'
     );
 
