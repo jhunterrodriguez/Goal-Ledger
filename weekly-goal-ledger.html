@@ -555,6 +555,10 @@
       '</div>' +
       '<input type="file" id="f-file" accept=".json,application/json,text/plain" style="display:none">' +
       '<hr class="divider">' +
+      '<div class="field"><label>Export just the setup — goal names, weekly targets, details — with no marks or notes. ' +
+        'Good for handing your routine to someone else without your personal history.</label></div>' +
+      '<div class="btnrow"><button class="btn" id="f-savetemplate">Export Goal Template</button></div>' +
+      '<hr class="divider">' +
       '<div class="field"><label>Or work with the backup as text — copy it out, or paste one in and press Import.</label>' +
         '<textarea id="f-data" style="min-height:120px;font-family:var(--mono);font-size:11px" spellcheck="false"></textarea></div>' +
       '<div class="btnrow">' +
@@ -595,6 +599,42 @@
       const file = new File([blob], name, { type: 'application/json' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try { await navigator.share({ files: [file] }); toast('Backup saved'); }
+        catch (e) { /* user cancelled the share sheet — no-op */ }
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+
+    document.getElementById('f-savetemplate').onclick = async () => {
+      const todayWk = mondayOf(new Date());
+      // Only goals you're actually running right now — paused/ended goals
+      // are personal situation, not part of "the routine" to hand off.
+      const activeGoals = state.goals.filter(g => statusInfoForWeek(g, todayWk).status === 'active');
+      if (activeGoals.length === 0) { toast('No active goals to export'); return; }
+      const templateGoals = activeGoals.map(g => {
+        const target = targetForWeek(g, todayWk);
+        const detail = detailForWeek(g, todayWk);
+        return {
+          id: 'g' + Date.now() + Math.random().toString(36).slice(2, 7),
+          name: g.name,
+          perDayMax: g.perDayMax || 1,
+          createdWeek: todayWk,
+          statusHistory: [{ week: todayWk, status: 'active' }],
+          targetHistory: [{ week: todayWk, target }],
+          detailHistory: detail ? [{ week: todayWk, detail }] : [],
+          notes: []
+        };
+      });
+      const templateData = { goals: templateGoals, marks: {} };
+      const name = 'ledger-template-' + todayWk + '.json';
+      const blob = new Blob([JSON.stringify(templateData)], { type: 'application/json' });
+      const file = new File([blob], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); toast('Template saved'); }
         catch (e) { /* user cancelled the share sheet — no-op */ }
         return;
       }
