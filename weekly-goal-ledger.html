@@ -67,6 +67,18 @@
     display: block; font-size: 11px; font-weight: 400; color: var(--muted);
     margin-top: 2px; letter-spacing: 0.08em; text-transform: uppercase;
   }
+  .weeknav .sub.current {
+    color: rgb(188,204,195);
+    text-shadow: 0 0 6px rgba(143,167,155,0.65), 0 0 2px rgba(233,240,234,0.5);
+  }
+  .fw {
+    color: var(--note-lit); opacity: 0.45; font-size: 13px; display: inline-block;
+    transition: color 150ms ease, opacity 150ms ease;
+  }
+  .fw.lit {
+    color: var(--pip); opacity: 1;
+    filter: drop-shadow(0 0 3px rgba(224,180,83,0.5));
+  }
   .todaybtn {
     background: none; border: none; color: var(--pip);
     font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
@@ -81,7 +93,8 @@
     padding: 12px 12px 12px;
     margin-bottom: 12px;
   }
-  .goal.archived { opacity: 0.62; }
+  .goal.paused { opacity: 0.5; }
+  .goal.paused .days { pointer-events: none; }
   .goal-head {
     display: flex; align-items: center; justify-content: space-between;
     gap: 8px; margin-bottom: 10px;
@@ -230,12 +243,19 @@
   .notelog { margin-top: 8px; }
   .note {
     border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin-bottom: 10px;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
   }
+  .note .ncontent { min-width: 0; flex: 1; }
   .note .ndate {
     font-family: var(--mono); font-size: 11px; color: var(--faint); display: block;
   }
   .note .ntext { font-size: 14px; color: var(--ink); }
   .note.auto .ntext { color: var(--muted); font-style: italic; }
+  .note .ndelete {
+    flex: none; background: none; border: none; color: var(--faint);
+    font-size: 16px; line-height: 1; padding: 2px 4px; cursor: pointer;
+  }
+  .note .ndelete:active { color: var(--danger); }
 
   .toast {
     position: fixed; bottom: 78px; left: 50%; transform: translateX(-50%);
@@ -256,7 +276,7 @@
 <div class="masthead">
   <h1>Weekly Goal Ledger</h1>
   <div style="display:flex;gap:2px;align-items:center">
-    <button class="todaybtn" id="todayBtn" style="visibility:hidden">This week</button>
+    <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Today</button>
     <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
   </div>
 </div>
@@ -366,13 +386,25 @@
   function weekTotal(goal, weekStart) {
     return weekDates(weekStart).reduce((s, d) => s + markCount(goal.id, d), 0);
   }
+  // Migrates goals saved before the status model existed (single archivedWeek flag)
+  // into the same week-scoped-history pattern used by target and detail.
+  function ensureStatusHistory(g) {
+    if (!g.statusHistory || !Array.isArray(g.statusHistory) || g.statusHistory.length === 0) {
+      g.statusHistory = [{ week: g.createdWeek || '1970-01-01', status: 'active' }];
+      if (g.archivedWeek) g.statusHistory.push({ week: g.archivedWeek, status: 'ended' });
+      g.statusHistory.sort((a, b) => a.week < b.week ? -1 : 1);
+    }
+    return g.statusHistory;
+  }
+  function statusInfoForWeek(goal, weekStart) {
+    const hist = ensureStatusHistory(goal);
+    let cur = hist[0];
+    for (const e of hist) { if (e.week <= weekStart) cur = e; }
+    return cur; // { week, status }
+  }
   function goalVisibleInWeek(goal, weekStart) {
     if (goal.createdWeek > weekStart) return false;
-    if (goal.archivedWeek && goal.archivedWeek <= weekStart) {
-      // still show archived goals in past weeks where they have marks
-      return weekTotal(goal, weekStart) > 0;
-    }
-    return true;
+    return statusInfoForWeek(goal, weekStart).status !== 'ended';
   }
 
   // ---------- rendering ----------
@@ -381,22 +413,31 @@
     const thisWeek = mondayOf(new Date());
     const dates = weekDates(viewWeek);
 
+    // goals for this week, computed early since the week label's
+    // firework accent depends on whether everything active is done
+    const visible = state.goals.filter(g => goalVisibleInWeek(g, viewWeek));
+    const activeThisWeek = visible.filter(g => statusInfoForWeek(g, viewWeek).status === 'active');
+    const allDone = activeThisWeek.length > 0 &&
+      activeThisWeek.every(g => weekTotal(g, viewWeek) >= targetForWeek(g, viewWeek));
+
     // week label
     const end = dates[6];
     const sameYear = viewWeek.slice(0, 4) === end.slice(0, 4);
+    const isCurrent = viewWeek === thisWeek;
+    const subLabel = isCurrent ? 'this week' : viewWeek > thisWeek ? 'upcoming' : 'past week';
     document.getElementById('weekLabel').innerHTML =
+      '<span class="fw' + (allDone ? ' lit' : '') + '">✳</span> ' +
       fmtShort(viewWeek) + ' – ' + fmtShort(end) + (sameYear ? ', ' + end.slice(0, 4) : '') +
-      '<span class="sub">' + (viewWeek === thisWeek ? 'this week' :
-        viewWeek > thisWeek ? 'upcoming' : 'past week') + '</span>';
-    document.getElementById('todayBtn').style.visibility = viewWeek === thisWeek ? 'hidden' : 'visible';
+      ' <span class="fw' + (allDone ? ' lit' : '') + '">✳</span>' +
+      '<span class="sub' + (isCurrent ? ' current' : '') + '">' + subLabel + '</span>';
+    document.getElementById('todayBtn').style.visibility = isCurrent ? 'hidden' : 'visible';
 
     // day-of-week header
     document.getElementById('dayRow').innerHTML = DAYS.map((d, i) =>
       '<span>' + d + '\u00A0' + (+dates[i].slice(8)) + '</span>').join('');
 
-    // goals
+    // goal list
     const list = document.getElementById('goalList');
-    const visible = state.goals.filter(g => goalVisibleInWeek(g, viewWeek));
     if (visible.length === 0) {
       list.innerHTML = '<div class="empty">' + (state.goals.length === 0
         ? 'No goals yet. Add your first one below.'
@@ -409,7 +450,8 @@
       const total = weekTotal(g, viewWeek);
       const detail = detailForWeek(g, viewWeek);
       const noted = hasNoteThisWeek(g, viewWeek);
-      const isArch = g.archivedWeek && g.archivedWeek <= viewWeek;
+      const status = statusInfoForWeek(g, viewWeek).status;
+      const isPaused = status === 'paused';
       const cells = dates.map(d => {
         const count = markCount(g.id, d);
         const future = d > todayISO;
@@ -421,12 +463,12 @@
           (future ? '' : ' data-goal="' + g.id + '" data-date="' + d + '"') + '>' +
           '<span class="dnum">' + +d.slice(8) + '</span>' + multi + '</div>';
       }).join('');
-      return '<div class="goal' + (isArch ? ' archived' : '') + '" data-gid="' + g.id + '">' +
+      return '<div class="goal' + (isPaused ? ' paused' : '') + '" data-gid="' + g.id + '">' +
         '<div class="goal-head">' +
           noteIcon(noted) +
           '<button class="goal-name" data-edit="' + g.id + '">' + esc(g.name) +
             (detail ? ' <span class="detail">' + esc(detail) + '</span>' : '') +
-            (isArch ? '<span class="notehint">archived</span>' : '') + '</button>' +
+            (isPaused ? '<span class="notehint">paused</span>' : '') + '</button>' +
           '<span class="counter' + (total >= target ? ' met' : '') + '">' + total + '/' + target + '</span>' +
           '<div class="reorderbtns">' +
             '<button data-move="' + g.id + '" data-dir="-1"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
@@ -539,6 +581,7 @@
         if (!Array.isArray(g.targetHistory) || g.targetHistory.length === 0) { toast('Backup is missing goal history'); return; }
         if (!Array.isArray(g.notes)) g.notes = [];
         if (!Array.isArray(g.detailHistory)) g.detailHistory = [];
+        if (!Array.isArray(g.statusHistory)) g.statusHistory = [];
       }
       if (!confirm('Restore this backup? It replaces everything currently in the ledger.')) return;
       state = parsed;
@@ -628,11 +671,12 @@
       const max = Math.max(1, +document.getElementById('f-max').value || 1);
       const detail = document.getElementById('f-detail').value.trim();
       if (!name) { document.getElementById('f-name').focus(); return; }
+      const createdWk = viewWeek <= mondayOf(new Date()) ? viewWeek : mondayOf(new Date());
       state.goals.push({
         id: 'g' + Date.now(),
         name, perDayMax: max,
-        createdWeek: viewWeek <= mondayOf(new Date()) ? viewWeek : mondayOf(new Date()),
-        archivedWeek: null,
+        createdWeek: createdWk,
+        statusHistory: [{ week: createdWk, status: 'active' }],
         targetHistory: [{ week: viewWeek, target }],
         detailHistory: detail ? [{ week: viewWeek, detail }] : [],
         notes: []
@@ -642,6 +686,37 @@
     setTimeout(() => document.getElementById('f-name').focus(), 60);
   }
 
+  // ---------- pause / end / resume / reactivate ----------
+  function openWeekChoice(title, onPick) {
+    const thisWk = mondayOf(new Date());
+    const nextWk = addDays(thisWk, 7);
+    openSheet(
+      '<h2>' + esc(title) + '</h2>' +
+      '<div class="field"><label>Choose when this takes effect.</label></div>' +
+      '<div class="btnrow">' +
+        '<button class="btn" id="wc-this">This week — ' + fmtShort(thisWk) + '</button>' +
+        '<button class="btn" id="wc-next">Next week — ' + fmtShort(nextWk) + '</button>' +
+      '</div>' +
+      '<div class="btnrow" style="margin-top:10px"><button class="btn quiet" id="wc-cancel">Cancel</button></div>'
+    );
+    document.getElementById('wc-this').onclick = () => onPick(thisWk);
+    document.getElementById('wc-next').onclick = () => onPick(nextWk);
+    document.getElementById('wc-cancel').onclick = () => onPick(null);
+  }
+
+  function setGoalStatus(g, gid, status, verb) {
+    const titles = { paused: 'Pause goal', ended: 'End goal', active: 'Reactivate goal' };
+    openWeekChoice(titles[status] + ' — starting when?', wk => {
+      if (!wk) { openEdit(gid); return; } // cancelled — go back to the editor
+      ensureStatusHistory(g);
+      g.statusHistory = g.statusHistory.filter(e => e.week !== wk);
+      g.statusHistory.push({ week: wk, status });
+      g.statusHistory.sort((a, b) => a.week < b.week ? -1 : 1);
+      g.notes.push({ date: iso(new Date()), text: verb + ' starting ' + fmtShort(wk), auto: true });
+      save(); closeSheet(); render();
+    });
+  }
+
   // ---------- edit goal ----------
   function openEdit(gid) {
     const g = state.goals.find(x => x.id === gid);
@@ -649,7 +724,11 @@
     editingId = gid;
     const currentTarget = targetForWeek(g, mondayOf(new Date()));
     const currentDetail = detailForWeek(g, mondayOf(new Date()));
-    const isArch = !!g.archivedWeek;
+    const statusNow = statusInfoForWeek(g, mondayOf(new Date()));
+    const statusLine = statusNow.status === 'active' ? '' :
+      '<div class="field"><label>Status</label><span style="font-size:14px;color:var(--muted)">' +
+      (statusNow.status === 'paused' ? 'Paused since ' : 'Ended since ') + fmtShort(statusNow.week) +
+      '</span></div>';
 
     // history strip: last 8 finished-or-current weeks since creation
     const thisWeek = mondayOf(new Date());
@@ -663,10 +742,32 @@
       w = addDays(w, -7);
     }
 
-    const notesHtml = g.notes.slice().reverse().map(n =>
-      '<div class="note' + (n.auto ? ' auto' : '') + '"><span class="ndate">' + fmtNote(n.date) + '</span>' +
-      '<span class="ntext">' + esc(n.text) + '</span></div>'
-    ).join('') || '<div class="note auto"><span class="ntext">No notes yet.</span></div>';
+    const notesHtml = g.notes.length === 0
+      ? '<div class="note auto"><div class="ncontent"><span class="ntext">No notes yet.</span></div></div>'
+      : g.notes.map((n, i) => ({ n, i })).reverse().map(({ n, i }) =>
+          '<div class="note' + (n.auto ? ' auto' : '') + '">' +
+            '<div class="ncontent"><span class="ndate">' + fmtNote(n.date) + '</span>' +
+            '<span class="ntext">' + esc(n.text) + '</span></div>' +
+            '<button class="ndelete" data-delnote="' + i + '" title="Delete note">×</button>' +
+          '</div>'
+        ).join('');
+
+    let lifecycleHtml;
+    if (statusNow.status === 'ended') {
+      lifecycleHtml = '<div class="btnrow"><button class="btn" id="f-reactivate">Reactivate Goal</button></div>';
+    } else if (statusNow.status === 'paused') {
+      lifecycleHtml =
+        '<div class="btnrow">' +
+          '<button class="btn" id="f-resume">Resume Goal</button>' +
+          '<button class="btn" id="f-end">End Goal (keep history)</button>' +
+        '</div>';
+    } else {
+      lifecycleHtml =
+        '<div class="btnrow">' +
+          '<button class="btn" id="f-pause">Pause Goal (keep history)</button>' +
+          '<button class="btn" id="f-end">End Goal (keep history)</button>' +
+        '</div>';
+    }
 
     openSheet(
       '<h2>Edit goal</h2>' +
@@ -679,6 +780,7 @@
         '<div class="field"><label>Max checks per day</label>' +
           '<input id="f-max" type="number" min="1" max="6" value="' + (g.perDayMax || 1) + '"></div>' +
       '</div>' +
+      statusLine +
       '<div class="btnrow">' +
         '<button class="btn quiet" id="f-cancel">Cancel</button>' +
         '<button class="btn primary" id="f-save">Save changes</button>' +
@@ -691,9 +793,9 @@
       '<div class="btnrow"><button class="btn" id="f-addnote">Add note</button></div>' +
       '<div class="notelog">' + notesHtml + '</div>' +
       '<hr class="divider">' +
-      '<div class="btnrow">' +
-        '<button class="btn" id="f-arch">' + (isArch ? 'Unarchive' : 'Archive (keep history)') + '</button>' +
-        '<button class="btn danger" id="f-del">Delete forever</button>' +
+      lifecycleHtml +
+      '<div class="btnrow" style="margin-top:10px">' +
+        '<button class="btn danger" id="f-del">Delete Forever (remove history)</button>' +
       '</div>'
     );
 
@@ -731,15 +833,23 @@
       save(); openEdit(gid); // re-render sheet with the new note
     };
 
-    document.getElementById('f-arch').onclick = () => {
-      if (g.archivedWeek) {
-        g.archivedWeek = null;
-      } else {
-        g.archivedWeek = mondayOf(new Date());
-        g.notes.push({ date: iso(new Date()), text: 'Archived', auto: true });
-      }
-      save(); closeSheet(); render();
-    };
+    document.querySelector('.notelog').addEventListener('click', e => {
+      const btn = e.target.closest('[data-delnote]');
+      if (!btn) return;
+      const i = +btn.dataset.delnote;
+      g.notes.splice(i, 1);
+      save(); openEdit(gid); // re-render sheet without the deleted note
+    });
+
+    if (statusNow.status === 'ended') {
+      document.getElementById('f-reactivate').onclick = () => setGoalStatus(g, gid, 'active', 'Reactivated');
+    } else if (statusNow.status === 'paused') {
+      document.getElementById('f-resume').onclick = () => setGoalStatus(g, gid, 'active', 'Resumed');
+      document.getElementById('f-end').onclick = () => setGoalStatus(g, gid, 'ended', 'Ended');
+    } else {
+      document.getElementById('f-pause').onclick = () => setGoalStatus(g, gid, 'paused', 'Paused');
+      document.getElementById('f-end').onclick = () => setGoalStatus(g, gid, 'ended', 'Ended');
+    }
 
     document.getElementById('f-del').onclick = () => {
       if (!confirm('Delete "' + g.name + '" and all its history? This cannot be undone.')) return;
