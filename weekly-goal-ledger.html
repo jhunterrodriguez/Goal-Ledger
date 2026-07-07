@@ -53,7 +53,7 @@
     padding: 0 12px 14px;
   }
   .app-footer {
-    flex: none; display: flex; justify-content: center;
+    flex: none; display: flex; justify-content: space-between; align-items: center;
     padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
     background: var(--bg);
   }
@@ -69,12 +69,11 @@
     letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--muted); margin: 0;
   }
-  .titlegroup { display: flex; align-items: center; gap: 8px; }
-  .viewswitch { display: flex; gap: 4px; }
+  .viewswitch { display: flex; gap: 6px; }
   .switchbtn {
     background: none; border: 1px solid var(--line); color: var(--muted);
-    font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
-    padding: 3px 7px; border-radius: 6px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 10px 12px; border-radius: 9px; cursor: pointer;
     transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
   }
   .switchbtn.active {
@@ -353,16 +352,10 @@
 
   <div class="app-header">
     <div class="masthead">
-      <div class="titlegroup">
-        <h1>Goal Ledger</h1>
-        <div class="viewswitch">
-          <button class="switchbtn" id="weekViewBtn">Week View</button>
-          <button class="switchbtn" id="todayOnlyBtn">Today Only</button>
-        </div>
-      </div>
+      <h1>Goal Ledger</h1>
       <div style="display:flex;gap:2px;align-items:center">
         <button class="todaybtn" id="todayBtn" style="visibility:hidden">Go to Current Week</button>
-        <button class="todaybtn" id="todoBtn" style="color:var(--muted)">To-Do</button>
+        <button class="todaybtn" id="addBtn" style="color:var(--muted)">Add Goal</button>
         <button class="todaybtn" id="dataBtn" style="color:var(--muted)">Data</button>
       </div>
     </div>
@@ -381,7 +374,11 @@
   </div>
 
   <div class="app-footer">
-    <button class="fab" id="addBtn">+ Add goal</button>
+    <div class="viewswitch">
+      <button class="switchbtn" id="weekViewBtn">Week View</button>
+      <button class="switchbtn" id="todayOnlyBtn">Today Only</button>
+    </div>
+    <button class="fab" id="todoBtn">To-Do</button>
   </div>
 
 </div>
